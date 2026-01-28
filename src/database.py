@@ -130,5 +130,31 @@ def get_post(post_id):
     conn.close()
     return post
 
+# --- NEW FUNCTIONS FOR RATE LIMIT & BAN ---
+
+def count_recent_posts(user_id):
+    """Returns the number of posts a user made in the last 24 hours."""
+    conn = get_connection()
+    # SQLite syntax to get records from now minus 1 day
+    query = '''
+        SELECT COUNT(*) as count 
+        FROM posts 
+        WHERE user_id = ? 
+        AND created_at >= datetime('now', '-1 day')
+    '''
+    result = conn.execute(query, (user_id,)).fetchone()
+    conn.close()
+    return result['count'] if result else 0
+
+def delete_user_data(user_id):
+    """Deletes a user and all their associated posts."""
+    conn = get_connection()
+    # 1. Delete Posts
+    conn.execute("DELETE FROM posts WHERE user_id = ?", (user_id,))
+    # 2. Delete User
+    conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
 if __name__ == "__main__":
     init_db()

@@ -1,6 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
-from src.database import get_user, create_post, register_seller
+# 1. ADDED count_recent_posts to imports
+from src.database import get_user, create_post, register_seller, count_recent_posts
 from src.config import ADMIN_GROUP_ID
 
 # --- STATES ---
@@ -14,6 +15,16 @@ async def start_lost_found(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user = update.effective_user
     db_user = get_user(user.id)
+
+    # 2. CHECK RATE LIMIT (New Feature)
+    post_count = count_recent_posts(user.id)
+    if post_count >= 3:
+        await update.message.reply_text(
+            "⏳ **Daily Limit Reached**\n\n"
+            "You have reached your limit of 3 posts per 24 hours.\n"
+            "Please try again tomorrow!"
+        )
+        return ConversationHandler.END
 
     # CASE 1: I LOST (No Registration Needed)
     if "I Lost" in text:

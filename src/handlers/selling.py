@@ -1,20 +1,39 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
-from src.database import get_user, create_post
+# 1. ADDED count_recent_posts to imports
+from src.database import get_user, create_post, count_recent_posts
 from src.config import ADMIN_GROUP_ID
 
 PHOTO, TITLE, PRICE, CONDITION, CATEGORY, DESCRIPTION, CONFIRM = range(7)
 
 async def start_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    
+    # Check 1: Is Registered?
     if not user or not user['is_seller']:
         await update.message.reply_text("⛔ Please Register first from the main menu.")
+        return ConversationHandler.END
+
+    # Check 2: Rate Limit (New Feature)
+    post_count = count_recent_posts(user_id)
+    if post_count >= 3:
+        await update.message.reply_text(
+            "⏳ **Daily Limit Reached**\n\n"
+            "You have reached your limit of 3 posts per 24 hours.\n"
+            "Please try again tomorrow!"
+        )
         return ConversationHandler.END
 
     await update.message.reply_text("📸 Send a Photo of the item.")
     return PHOTO
 
 async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Safety check: ensure a photo was actually sent
+    if not update.message.photo:
+        await update.message.reply_text("⚠️ Please send a valid photo.")
+        return PHOTO
+
     context.user_data['photo_id'] = update.message.photo[-1].file_id
     await update.message.reply_text("📝 What is the Item Name?")
     return TITLE
