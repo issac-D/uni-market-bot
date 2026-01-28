@@ -1,11 +1,20 @@
 import sqlite3
 import logging
+import os  # <--- Added to handle folder creation
 from src.config import DB_PATH
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def get_connection():
+    """Establishes a connection to the database, ensuring the folder exists first."""
+    
+    # --- FIX FOR RENDER: Create directory if it doesn't exist ---
+    directory = os.path.dirname(DB_PATH)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory)
+    # -----------------------------------------------------------
+
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -100,13 +109,6 @@ def get_all_users():
     conn.close()
     return users
 
-if __name__ == "__main__":
-    init_db()
-
-
-
-# ... existing code ...
-
 def update_post_status(post_id, status):
     """Updates the status of a post (APPROVED, REJECTED, SOLD)."""
     conn = get_connection()
@@ -127,3 +129,6 @@ def get_post(post_id):
     post = conn.execute("SELECT * FROM posts WHERE post_id = ?", (post_id,)).fetchone()
     conn.close()
     return post
+
+if __name__ == "__main__":
+    init_db()
