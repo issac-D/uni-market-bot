@@ -69,9 +69,27 @@ def init_db():
     )
     ''')
 
+    # 4. BLACKLIST TABLE (New: Permanent Bans)
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS blacklist (
+        user_id INTEGER PRIMARY KEY,
+        banned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    # 5. FEEDBACK TABLE (New: Rate Limiting)
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        content TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
     conn.commit()
     conn.close()
-    logger.info("Database initialized with v2 Schema")
+    logger.info("Database initialized with v2 Schema (Blacklist & Feedback added)")
 
 # --- Helper Methods ---
 
@@ -130,7 +148,7 @@ def get_post(post_id):
     conn.close()
     return post
 
-# --- NEW FUNCTIONS FOR RATE LIMIT & BAN ---
+# --- SAFETY & ADMIN TOOLS ---
 
 def count_recent_posts(user_id):
     """Returns the number of posts a user made in the last 24 hours."""
@@ -147,7 +165,7 @@ def count_recent_posts(user_id):
     return result['count'] if result else 0
 
 def delete_user_data(user_id):
-    """Deletes a user and all their associated posts."""
+    """Soft Delete: Removes user and posts, but DOES NOT ban them."""
     conn = get_connection()
     # 1. Delete Posts
     conn.execute("DELETE FROM posts WHERE user_id = ?", (user_id,))
@@ -155,6 +173,36 @@ def delete_user_data(user_id):
     conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+# --- NEW: BLACKLIST FUNCTIONS ---
+def add_to_blacklist(user_id):
+    """Permanently bans a user ID."""
+    conn = get_connection()
+    conn.execute("INSERT OR IGNORE INTO blacklist (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+def is_blacklisted(user_id):
+    """Checks if a user is banned."""
+    conn = get_connection()
+    res = conn.execute("SELECT 1 FROM blacklist WHERE user_id = ?", (user_id,)).fetchone()
+    conn.close()
+    return res is not None
+
+# --- NEW: FEEDBACK FUNCTIONS ---
+def log_feedback(user_id, content):
+    conn = get_connection()
+    conn.execute("INSERT INTO feedback (user_id, content) VALUES (?, ?)", (user_id, content))
+    conn.commit()
+    conn.close()
+
+def count_recent_feedback(user_id):
+    """Returns number of feedback messages sent in last 24 hours."""
+    conn = get_connection()
+    query = "SELECT COUNT(*) as count FROM feedback WHERE user_id = ? AND created_at >= datetime('now', '-1 day')"
+    result = conn.execute(query, (user_id,)).fetchone()
+    conn.close()
+    return result['count'] if result else 0
 
 if __name__ == "__main__":
     init_db()

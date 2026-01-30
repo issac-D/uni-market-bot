@@ -1,12 +1,26 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
 from src.config import ADMIN_GROUP_ID
+# 1. IMPORT DATABASE FUNCTIONS
+from src.database import log_feedback, count_recent_feedback
 
 # State for the conversation
 FEEDBACK_TEXT = 0
 
 async def start_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point: Asks user for feedback."""
+    user = update.effective_user
+    
+    # 2. CHECK RATE LIMIT (1 per 24 hours)
+    if count_recent_feedback(user.id) >= 1:
+        await update.message.reply_text(
+            "⏳ **Feedback Limit Reached**\n\n"
+            "To prevent spam, you can only send feedback once every 24 hours.\n"
+            "Please try again later!",
+            parse_mode='Markdown'
+        )
+        return ConversationHandler.END
+
     await update.message.reply_text(
         "📝 Feedback & Suggestions\n\n"
         "Please type your message below (suggestions, bugs, or comments).\n"
@@ -19,6 +33,9 @@ async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receives the text and forwards to Admin Group."""
     user = update.effective_user
     feedback_msg = update.message.text
+    
+    # 3. LOG TO DATABASE (To trigger the limit next time)
+    log_feedback(user.id, feedback_msg)
     
     # Prepare message for Admin Group
     admin_text = (
